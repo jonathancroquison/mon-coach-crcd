@@ -2,67 +2,59 @@ import streamlit as st
 import google.generativeai as genai
 import time
 
-# Import des prompts
+# --- CONFIG ET PROMPTS ---
 try:
     from prompts import PROMPT_CLIENT, PROMPT_COACH
 except ImportError:
     PROMPT_CLIENT = "Tu es un client."
     PROMPT_COACH = "Analyse l'appel."
 
-# --- 1. CONFIGURATION ---
 st.set_page_config(page_title="Simulateur CRCD", layout="wide")
 
-# Configuration de la clé
+# --- MOTEUR IA ---
 if "GOOGLE_API_KEY" in st.secrets:
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 else:
-    st.warning("⚠️ Clé API non trouvée.")
+    st.warning("⚠️ Clé API manquante dans les Secrets.")
 
-# --- 2. FONCTIONS IA ---
 def obtenir_reponse_gemini(message_utilisateur, historique):
     try:
-        # ON UTILISE LE MODÈLE STANDARD (PLUS SÛR)
-        model = genai.GenerativeModel('gemini-pro')
+        # ON REVIENT SUR LE MODÈLE FLASH (LE PLUS FIABLE APRÈS VIDAGE CACHE)
+        model = genai.GenerativeModel('gemini-1.5-flash')
         
-        # On construit l'historique manuellement pour Gemini Pro
         history_gemini = []
-        # On injecte le rôle caché
+        # Initialisation forcée pour éviter les erreurs de contexte
         history_gemini.append({"role": "user", "parts": [PROMPT_CLIENT]})
-        history_gemini.append({"role": "model", "parts": ["D'accord, je suis prêt à jouer le rôle du client."]})
+        history_gemini.append({"role": "model", "parts": ["Compris."]})\
         
         for msg in historique:
             if msg["role"] != "system":
-                role_gemini = "user" if msg["role"] == "user" else "model"
-                history_gemini.append({"role": role_gemini, "parts": [msg["content"]]})
+                r = "user" if msg["role"] == "user" else "model"
+                history_gemini.append({"role": r, "parts": [msg["content"]]})
         
         chat = model.start_chat(history=history_gemini)
         response = chat.send_message(message_utilisateur)
         return response.text
     except Exception as e:
-        return f"Erreur technique : {e}"
+        # Si Flash échoue, message d'erreur clair
+        return f"Erreur IA : {e}"
 
 def analyse_coach(transcription):
     try:
-        # ON UTILISE LE MODÈLE STANDARD ICI AUSSI
-        model = genai.GenerativeModel('gemini-pro')
-        prompt_complet = PROMPT_COACH + "\n\nTRANSCRIPTION:\n" + transcription
-        response = model.generate_content(prompt_complet)
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        response = model.generate_content(PROMPT_COACH + "\n\nTRANSCRIPTION:\n" + transcription)
         return response.text
     except Exception as e:
         return f"Erreur Coach : {e}"
 
-# --- 3. MÉMOIRE ---
-if "messages" not in st.session_state:
-    st.session_state.messages = [] 
-if "appel_en_cours" not in st.session_state:
-    st.session_state.appel_en_cours = False
-if "start_time" not in st.session_state:
-    st.session_state.start_time = None
+# --- INTERFACE ---
+if "messages" not in st.session_state: st.session_state.messages = [] 
+if "appel_en_cours" not in st.session_state: st.session_state.appel_en_cours = False
+if "start_time" not in st.session_state: st.session_state.start_time = None
 
-# --- 4. INTERFACE ---
 with st.sidebar:
     st.title("🎧 Coach CRCD")
-    st.info("Moteur : Gemini Pro (Stable)")
+    st.success("Moteur : Gemini 1.5 Flash")
     
     if st.button("🟢 DÉCROCHER"):
         st.session_state.appel_en_cours = True
@@ -72,45 +64,36 @@ with st.sidebar:
         st.rerun()
 
     if st.session_state.appel_en_cours and st.session_state.start_time:
-        duree = int(time.time() - st.session_state.start_time)
-        st.metric("DMT", f"{duree} sec")
+        st.metric("Temps", f"{int(time.time() - st.session_state.start_time)} sec")
 
     if st.button("🔴 RACCROCHER"):
         st.session_state.appel_en_cours = False
         st.session_state.analyse_demandee = True
         st.rerun()
 
-# --- 5. CHAT ---
 st.header("Simulation d'appel")
 
 for msg in st.session_state.messages:
     if msg["role"] != "system":
-        icone = "🧑‍💻" if msg["role"] == "user" else "👤"
-        with st.chat_message(msg["role"], avatar=icone):
+        with st.chat_message(msg["role"], avatar=("🧑‍💻" if msg["role"] == "user" else "👤")):
             st.write(msg["content"])
 
 if st.session_state.appel_en_cours:
-    reponse_apprenti = st.chat_input("Votre réponse...")
-    if reponse_apprenti:
-        st.session_state.messages.append({"role": "user", "content": reponse_apprenti})
-        with st.chat_message("user", avatar="🧑‍💻"):
-            st.write(reponse_apprenti)
+    reponse = st.chat_input("Votre réponse...")
+    if reponse:
+        st.session_state.messages.append({"role": "user", "content": reponse})
+        st.rerun()
 
-        with st.spinner("Le client répond..."):
-            reponse_ia = obtenir_reponse_gemini(reponse_apprenti, st.session_state.messages[:-1])
-            st.session_state.messages.append({"role": "assistant", "content": reponse_ia})
-            with st.chat_message("assistant", avatar="👤"):
-                st.write(reponse_ia)
+# Réponse IA au rechargement
+if st.session_state.messages and st.session_state.messages[-1]["role"] == "user":
+    with st.spinner("..."):
+        rep_ia = obtenir_reponse_gemini(st.session_state.messages[-1]["content"], st.session_state.messages[:-1])
+        st.session_state.messages.append({"role": "assistant", "content": rep_ia})
+        st.rerun()
 
-# --- 6. FEEDBACK ---
 if hasattr(st.session_state, 'analyse_demandee') and st.session_state.analyse_demandee:
     st.divider()
-    st.subheader("📝 Rapport du Coach")
-    with st.spinner("Analyse en cours..."):
-        texte_appel = ""
-        for msg in st.session_state.messages:
-            role = "Conseiller" if msg["role"] == "user" else "Client"
-            texte_appel += f"{role}: {msg['content']}\n"
-        feedback = analyse_coach(texte_appel)
-        st.markdown(feedback)
+    with st.spinner("Analyse..."):
+        txt = "\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.messages if m['role']!='system'])
+        st.info(analyse_coach(txt))
         st.session_state.analyse_demandee = False
