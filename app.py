@@ -1,22 +1,24 @@
 import streamlit as st
 import google.generativeai as genai
 import time
+from gtts import gTTS # Pour que l'IA parle
+from streamlit_mic_recorder import mic_recorder # Pour le micro
+import io
 
-# --- IMPORTATION DES SCÉNARIOS ---
+# --- IMPORT SCENARIOS ---
 try:
     from prompts import SCENARIOS
 except ImportError:
-    st.error("Erreur : Le fichier prompts.py est introuvable ou mal configuré.")
+    st.error("Erreur prompts.py")
     st.stop()
 
-# --- CONFIGURATION DE LA PAGE ---
-st.set_page_config(page_title="Simulateur CRCD Pro", layout="wide", page_icon="🎧")
+st.set_page_config(page_title="Simulateur CRCD Audio", layout="wide", page_icon="🎧")
 
-# --- CSS POUR LE STYLE (Optionnel mais joli) ---
+# --- CSS (Design) ---
 st.markdown("""
 <style>
-    .big-font { font-size:20px !important; }
-    .stButton>button { width: 100%; border-radius: 10px; height: 3em; }
+    .stButton>button { width: 100%; border-radius: 10px; }
+    .audio-player { margin-top: 10px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -24,22 +26,41 @@ st.markdown("""
 if "GOOGLE_API_KEY" in st.secrets:
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 else:
-    st.warning("⚠️ Clé API manquante. Configurez-la dans les Secrets.")
+    st.warning("⚠️ Clé API manquante.")
 
-# --- FONCTIONS IA ---
+# --- FONCTIONS ---
+
+def transcrire_audio(audio_bytes):
+    """Envoie l'audio à Gemini pour le transformer en texte"""
+    try:
+        model = genai.GenerativeModel('gemini-2.0-flash')
+        # On demande à Gemini d'écouter et d'écrire
+        prompt = "Écoute cet audio et transcris exactement ce qui est dit, sans ajouter de commentaires."
+        response = model.generate_content([prompt, {"mime_type": "audio/wav", "data": audio_bytes}])
+        return response.text
+    except Exception as e:
+        return f"Erreur transcription : {e}"
+
+def parler(texte, langue='fr'):
+    """Transforme le texte en fichier audio MP3"""
+    try:
+        tts = gTTS(text=texte, lang=langue, slow=False)
+        audio_fp = io.BytesIO()
+        tts.write_to_fp(audio_fp)
+        return audio_fp
+    except Exception as e:
+        return None
+
 def obtenir_reponse_gemini(message_utilisateur, historique, prompt_systeme):
     try:
-        model = genai.GenerativeModel('gemini-2.0-flash') # Ton modèle rapide
-        
-        history_gemini = []
-        # On injecte le caractère spécifique de l'Avatar choisi
-        history_gemini.append({"role": "user", "parts": [prompt_systeme]})
-        history_gemini.append({"role": "model", "parts": ["C'est compris, je rentre dans le personnage."]})
+        model = genai.GenerativeModel('gemini-2.0-flash')
+        history_gemini = [{"role": "user", "parts": [prompt_systeme]}, 
+                          {"role": "model", "parts": ["Compris."]}]
         
         for msg in historique:
             if msg["role"] != "system":
-                role_gemini = "user" if msg["role"] == "user" else "model"
-                history_gemini.append({"role": role_gemini, "parts": [msg["content"]]})
+                r = "user" if msg["role"] == "user" else "model"
+                history_gemini.append({"role": r, "parts": [msg["content"]]})
         
         chat = model.start_chat(history=history_gemini)
         response = chat.send_message(message_utilisateur)
@@ -50,100 +71,65 @@ def obtenir_reponse_gemini(message_utilisateur, historique, prompt_systeme):
 def analyse_coach(transcription, prompt_coach):
     try:
         model = genai.GenerativeModel('gemini-2.0-flash')
-        full_prompt = prompt_coach + "\n\nTRANSCRIPTION DE L'APPEL:\n" + transcription
-        response = model.generate_content(full_prompt)
+        response = model.generate_content(prompt_coach + "\n\nTRANSCRIPTION:\n" + transcription)
         return response.text
     except Exception as e:
         return f"Erreur Coach : {e}"
 
-# --- GESTION DE L'ÉTAT (NAVIGATION) ---
+# --- STATE ---
 if "page" not in st.session_state: st.session_state.page = "notice"
-if "selected_scenario" not in st.session_state: st.session_state.selected_scenario = None
 if "messages" not in st.session_state: st.session_state.messages = [] 
 if "appel_en_cours" not in st.session_state: st.session_state.appel_en_cours = False
 if "start_time" not in st.session_state: st.session_state.start_time = None
+if "last_audio_id" not in st.session_state: st.session_state.last_audio_id = None # Pour éviter les boucles du micro
 
-# =========================================================
-# ÉCRAN 1 : LA NOTICE D'USAGE (ACCUEIL)
-# =========================================================
+# --- NAVIGATION ---
+
+# 1. NOTICE
 if st.session_state.page == "notice":
-    st.title("🎧 Bienvenue sur le Coach Virtuel CRCD")
-    
-    with st.expander("📖 LIRE LA NOTICE D'USAGE AVANT DE COMMENCER", expanded=True):
-        st.markdown("""
-        ### Objectifs Pédagogiques
-        Cet outil est conçu pour vous entraîner aux fondamentaux de la Relation Client à Distance.
-        
-        **Les points clés évalués :**
-        * ✅ **La Trame d'Appel :** Respect des étapes (SBAM, Découverte, Proposition, Congé).
-        * ✅ **La Directivité :** Savoir garder le contrôle de l'entretien.
-        * ✅ **La DMT :** Gérer son temps (le chronomètre tourne !).
-        * ✅ **L'Écoute Active :** Reformulation et empathie.
-        
-        **Comment ça marche ?**
-        1. Choisissez un **Avatar** (scénario).
-        2. Cliquez sur **"Décrocher"**.
-        3. Discutez avec le client (IA) comme au téléphone.
-        4. Cliquez sur **"Raccrocher"** pour recevoir votre note et les conseils du Coach.
-        """)
-        
-    if st.button("JE SUIS PRÊT - ACCÉDER AUX SCÉNARIOS ➡️"):
+    st.title("🎧 Coach CRCD - Mode Vocal 🎙️")
+    st.info("Nouveau : Vous pouvez maintenant PARLER au client !")
+    st.markdown("""
+    **Comment utiliser la voix ?**
+    1. Dans la simulation, cliquez sur le bouton **Micro** dans la barre latérale.
+    2. Parlez (votre navigateur demandera l'autorisation).
+    3. Arrêtez l'enregistrement : l'IA vous répondra à l'oral !
+    """)
+    if st.button("JE SUIS PRÊT ➡️"):
         st.session_state.page = "choix_scenario"
         st.rerun()
 
-# =========================================================
-# ÉCRAN 2 : LE CHOIX DES AVATARS
-# =========================================================
+# 2. CHOIX
 elif st.session_state.page == "choix_scenario":
-    st.title("Choisis ton client du jour")
+    st.title("Choix du Client")
+    c1, c2, c3 = st.columns(3)
     
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.header("Avatar 1")
-        st.info("👶 **Théo - Débutant**")
-        st.write("Travail sur l'Identification & la Trame.")
-        if st.button("Choisir Théo"):
-            st.session_state.selected_scenario = SCENARIOS["SCENARIO_1"]
+    with c1: 
+        if st.button("👶 Théo (Facile)"): 
+            st.session_state.selected = SCENARIOS["SCENARIO_1"]
+            st.session_state.page = "simulation"
+            st.rerun()
+    with c2: 
+        if st.button("😤 Sarah (Difficile)"): 
+            st.session_state.selected = SCENARIOS["SCENARIO_2"]
+            st.session_state.page = "simulation"
+            st.rerun()
+    with c3: 
+        if st.button("💼 Marc (Expert)"): 
+            st.session_state.selected = SCENARIOS["SCENARIO_3"]
             st.session_state.page = "simulation"
             st.rerun()
 
-    with col2:
-        st.header("Avatar 2")
-        st.warning("😤 **Sarah - Difficile**")
-        st.write("Travail sur la Rétention & Gestion de conflit.")
-        if st.button("Choisir Sarah"):
-            st.session_state.selected_scenario = SCENARIOS["SCENARIO_2"]
-            st.session_state.page = "simulation"
-            st.rerun()
-
-    with col3:
-        st.header("Avatar 3")
-        st.error("💼 **Marc - Expert**")
-        st.write("Travail sur la Vente Additionnelle.")
-        if st.button("Choisir Marc"):
-            st.session_state.selected_scenario = SCENARIOS["SCENARIO_3"]
-            st.session_state.page = "simulation"
-            st.rerun()
-
-    if st.button("⬅️ Revenir à la notice"):
-        st.session_state.page = "notice"
-        st.rerun()
-
-# =========================================================
-# ÉCRAN 3 : LA SIMULATION (CHAT)
-# =========================================================
+# 3. SIMULATION
 elif st.session_state.page == "simulation":
-    scenario = st.session_state.selected_scenario
+    scenario = st.session_state.selected
     
-    # Sidebar de contrôle
+    # SIDEBAR : Commandes
     with st.sidebar:
-        st.title(f"{scenario['image']} Appel en cours")
-        st.markdown(f"**{scenario['titre']}**")
-        st.info(scenario['description'])
+        st.title(f"{scenario['image']} {scenario['titre']}")
         
         if not st.session_state.appel_en_cours:
-            if st.button("🟢 DÉCROCHER L'APPEL"):
+            if st.button("🟢 DÉCROCHER"):
                 st.session_state.appel_en_cours = True
                 st.session_state.start_time = time.time()
                 st.session_state.messages = []
@@ -151,53 +137,84 @@ elif st.session_state.page == "simulation":
                 st.rerun()
         else:
             duree = int(time.time() - st.session_state.start_time)
-            st.metric("⏱️ DMT", f"{duree} sec")
+            st.metric("⏱️ Temps", f"{duree} s")
             
-            if st.button("🔴 RACCROCHER & ANALYSER"):
+            st.markdown("---")
+            st.write("**🎙️ PARLER AU CLIENT :**")
+            # Composant Micro
+            audio_data = mic_recorder(
+                start_prompt="🔴 Enregistrer",
+                stop_prompt="⏹️ Envoyer",
+                just_once=True,
+                key='recorder'
+            )
+            
+            st.markdown("---")
+            if st.button("🔴 RACCROCHER"):
                 st.session_state.appel_en_cours = False
                 st.session_state.analyse_demandee = True
                 st.rerun()
-        
-        st.markdown("---")
-        if st.button("🔙 Changer de scénario"):
-            st.session_state.page = "choix_scenario"
-            st.session_state.appel_en_cours = False
-            st.rerun()
 
-    # Zone de Chat
-    st.header(f"📞 {scenario['titre']}")
+    # ZONE CENTRALE
+    st.header(f"📞 Appel avec {scenario['titre'].split(':')[1]}")
 
-    # Affichage historique
+    # Affichage Historique
     for msg in st.session_state.messages:
         if msg["role"] != "system":
             with st.chat_message(msg["role"], avatar=("🧑‍💻" if msg["role"] == "user" else scenario['image'])):
                 st.write(msg["content"])
+                # Si c'est un message audio de l'IA, on affiche le lecteur
+                if "audio" in msg:
+                    st.audio(msg["audio"], format="audio/mp3")
 
-    # Input User
-    if st.session_state.appel_en_cours:
-        reponse = st.chat_input("Votre réponse au client...")
-        if reponse:
-            st.session_state.messages.append({"role": "user", "content": reponse})
+    # LOGIQUE MICROPHONE (Si audio reçu)
+    if st.session_state.appel_en_cours and audio_data is not None:
+        # On vérifie que c'est un nouvel enregistrement pour éviter les répétitions
+        current_audio_id = audio_data['id']
+        if current_audio_id != st.session_state.last_audio_id:
+            st.session_state.last_audio_id = current_audio_id
+            
+            # 1. On transcrit l'audio
+            with st.spinner("Transcription de votre voix..."):
+                texte_apprenant = transcrire_audio(audio_data['bytes'])
+            
+            # 2. On ajoute le message de l'apprenant
+            st.session_state.messages.append({"role": "user", "content": texte_apprenant})
             st.rerun()
 
-    # Réponse IA
+    # LOGIQUE CLAVIER (Alternative)
+    if st.session_state.appel_en_cours:
+        reponse_texte = st.chat_input("Ou écrivez votre réponse ici...")
+        if reponse_texte:
+            st.session_state.messages.append({"role": "user", "content": reponse_texte})
+            st.rerun()
+
+    # RÉPONSE DE L'IA
     if st.session_state.messages and st.session_state.messages[-1]["role"] == "user" and st.session_state.appel_en_cours:
         with st.chat_message("assistant", avatar=scenario['image']):
-            with st.spinner(f"{scenario['titre'].split(':')[1]} répond..."):
+            with st.spinner("Le client réfléchit..."):
+                # A. Texte
                 rep_ia = obtenir_reponse_gemini(
                     st.session_state.messages[-1]["content"], 
                     st.session_state.messages[:-1],
-                    scenario['client_prompt'] # On envoie le prompt spécifique de l'avatar choisi
+                    scenario['client_prompt']
                 )
+                
+                # B. Audio (Synthèse vocale)
+                audio_file = parler(rep_ia)
+                
                 st.write(rep_ia)
-        st.session_state.messages.append({"role": "assistant", "content": rep_ia})
+                if audio_file:
+                    st.audio(audio_file, format='audio/mp3', start_time=0)
+        
+        # On sauvegarde le message ET l'audio dans l'historique
+        st.session_state.messages.append({"role": "assistant", "content": rep_ia, "audio": audio_file})
 
-    # Feedback Coach
+    # COACH
     if hasattr(st.session_state, 'analyse_demandee') and st.session_state.analyse_demandee:
         st.divider()
-        st.subheader("📝 Analyse de ta performance")
-        with st.spinner("Le coach relit la trame, vérifie la DMT et la directivité..."):
+        st.subheader("📝 Analyse du Coach")
+        with st.spinner("Analyse..."):
             txt = "\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.messages if m['role']!='system'])
-            # On envoie le prompt spécifique du coach associé au scénario
             st.info(analyse_coach(txt, scenario['coach_prompt']))
             st.session_state.analyse_demandee = False
