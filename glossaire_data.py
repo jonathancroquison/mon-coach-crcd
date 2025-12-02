@@ -12,6 +12,11 @@ GLOSSAIRE = {
         "exemple": "Le sourire s'entend au téléphone ! On parle de 'sourire vocal'.",
         "interet": "Instaure immédiatement un climat chaleureux et positif. C'est la première impression (primordiale)."
     },
+    "Les Mots Noirs": {
+        "definition": "Termes à connotation négative, dubitative ou anxiogène qu'il faut bannir du langage (aussi appelés 'Mots Gomme').",
+        "exemple": "À bannir : 'Pas de souci', 'Problème', 'Grave', 'Petit retard', 'Essayer'. Préférez le langage positif : 'Je m'en occupe', 'Situation', 'Important', 'Immédiatement'.",
+        "interet": "Rassurer le client. Le cerveau retient le mot négatif (ex: 'Pas de souci' fait penser au 'Souci'). Le langage positif renforce la confiance."
+    },
     "DMT (Durée Moyenne de Traitement)": {
         "definition": "Indicateur clé de performance correspondant au temps moyen passé pour traiter un appel (conversation + traitement administratif post-appel).",
         "exemple": "Si votre objectif DMT est de 300 secondes (5 min), vous devez aller à l'essentiel sans brusquer le client.",
@@ -37,14 +42,14 @@ GLOSSAIRE = {
         "exemple": "Méthode 'Oui, et...' plutôt que 'Non, mais...'. Ex: 'Je comprends votre avis sur le prix, et justement ce tarif inclut une assurance...'",
         "interet": "Transformer un point bloquant en opportunité de convaincre."
     },
-    "La Règle des 4 C (Cercle de Confiance)": {
-        "definition": "Les 4 piliers d'un appel réussi : Contact, Connaître, Convaincre, Conclure.",
+    "La Règle des 4 C": {
+        "definition": "Les 4 piliers d'un appel réussi (Cercle de Confiance) : Contact, Connaître, Convaincre, Conclure.",
         "exemple": "Ne jamais essayer de Convaincre (proposer une solution) avant d'avoir fini de Connaître (Découverte).",
-        "interet": "Structure la démarche commerciale et relationnelle."
+        "interet": "Structure la démarche commerciale et relationnelle pour éviter de proposer une solution inadaptée."
     },
-    "La Vente Additionnelle (Rebond)": {
-        "definition": "Proposer un produit ou service supplémentaire pertinent après avoir répondu à la demande principale.",
-        "exemple": "Cross-sell : 'Puisque vous partez aux USA (demande principale), avez-vous pensé à l'assurance voyage (rebond) ?'",
-        "interet": "Augmenter le chiffre d'affaires et la satisfaction client par une approche conseil."
+    "Le Rebond Commercial": {
+        "definition": "Action de proposer un produit ou service supplémentaire pertinent une fois la demande initiale traitée (Vente Additionnelle / Cross-sell).",
+        "exemple": "Une fois le problème technique résolu : 'Maintenant que tout fonctionne, saviez-vous que vous êtes éligible à la Fibre ?'",
+        "interet": "Augmenter le panier moyen et fidéliser le client en anticipant ses besoins futurs."
     }
 }
