@@ -19,18 +19,25 @@ st.set_page_config(
     page_title="Campus Relation Client",
     layout="wide",
     page_icon="🎧",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
+    menu_items={
+        'About': "Simulateur pédagogique CRCD - @croquison 2025"
+    }
 )
 
-# --- CSS / DESIGN ---
+# --- CSS / DESIGN & ACCESSIBILITÉ ---
 st.markdown("""
 <style>
-    /* Titre Principal */
+    /* TYPOGRAPHIE & LISIBILITÉ */
+    html, body, [class*="css"] {
+        font-family: 'Segoe UI', Helvetica, sans-serif;
+    }
+    
+    /* Titre Principal (H1) */
     .titre-accueil { 
-        font-family: 'Helvetica Neue', sans-serif;
         font-size: 42px; 
         font-weight: 800; 
-        color: #0F172A; /* Bleu très sombre, presque noir */
+        color: #0F172A; /* Contraste fort (WCAG AAA) */
         line-height: 1.2;
         margin-top: -20px;
         margin-bottom: 15px;
@@ -39,29 +46,24 @@ st.markdown("""
     /* Sous-titre */
     .sous-titre {
         font-size: 18px;
-        color: #475569;
+        color: #334155; /* Gris foncé lisible */
         margin-bottom: 25px;
         line-height: 1.5;
-        font-weight: 400;
     }
 
     /* Cartes Objectifs */
     .card {
         background-color: white;
-        padding: 15px;
+        padding: 20px;
         border-radius: 12px;
         box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-        margin-bottom: 12px;
-        border-left: 5px solid #2563EB; /* Bleu royal */
-        transition: transform 0.2s;
+        margin-bottom: 15px;
+        border-left: 6px solid #2563EB; /* Marqueur visuel fort */
     }
-    .card:hover {
-        transform: translateX(5px);
-    }
-    .card h3 { margin: 0 0 5px 0; font-size: 18px; color: #1E40AF; font-weight: 700; }
-    .card p { margin: 0; font-size: 15px; color: #334155; }
+    .card h3 { margin: 0 0 8px 0; font-size: 18px; color: #1E40AF; font-weight: 700; }
+    .card p { margin: 0; font-size: 16px; color: #1E293B; }
 
-    /* Boutons */
+    /* Boutons : Focus visible et contraste */
     .stButton>button { 
         width: 100%;
         border-radius: 8px; 
@@ -70,12 +72,27 @@ st.markdown("""
         border: none;
         background-color: #2563EB;
         color: white;
-        box-shadow: 0 4px 6px rgba(37, 99, 235, 0.2);
+        font-size: 16px; /* Texte plus grand */
         transition: all 0.2s;
     }
     .stButton>button:hover {
         background-color: #1D4ED8;
-        transform: scale(1.02);
+        transform: scale(1.01);
+    }
+    .stButton>button:focus {
+        outline: 3px solid #FCD34D; /* Focus visible pour navigation clavier */
+    }
+    
+    /* FOOTER (Pied de page) */
+    .footer {
+        width: 100%;
+        text-align: center;
+        margin-top: 50px;
+        padding-top: 20px;
+        border-top: 1px solid #E2E8F0;
+        color: #64748B;
+        font-size: 14px;
+        font-style: italic;
     }
     
     /* Score */
@@ -98,6 +115,7 @@ def afficher_barometre(score):
     col_jauge, col_verdict = st.columns([3, 1])
     with col_jauge:
         st.progress(score / 100)
+        # Utilisation de couleurs standards pour daltoniens (Rouge/Orange/Vert reste standard mais le texte aide)
         if score < 50: st.error(f"🔴 {score}/100 - Insuffisant")
         elif score < 80: st.warning(f"🟠 {score}/100 - En acquisition")
         else: st.success(f"🟢 {score}/100 - Maîtrisé")
@@ -139,6 +157,9 @@ def analyse_coach(txt, prompt):
         return model.generate_content(prompt + "\n\nTRANSCRIPTION:\n" + txt).text
     except: return "Erreur analyse."
 
+def afficher_footer():
+    st.markdown('<div class="footer">@croquison Création pédagogique 2025 - Tous droits réservés</div>', unsafe_allow_html=True)
+
 @st.dialog("❓ Guide Rapide")
 def afficher_notice():
     st.markdown("### 🎧 Comment s'entraîner ?\n1. **Choisissez un client**.\n2. **Cliquez sur 'Décrocher'**.\n3. **Parlez au client**.\n4. **Analysez** vos résultats.")
@@ -150,12 +171,16 @@ if "appel_en_cours" not in st.session_state: st.session_state.appel_en_cours = F
 if "start_time" not in st.session_state: st.session_state.start_time = None
 if "last_audio_id" not in st.session_state: st.session_state.last_audio_id = None
 
-# --- SIDEBAR (LOGO) ---
+# --- SIDEBAR (NAVIGATION) ---
 with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/4712/4712009.png", width=70)
+    st.image("https://cdn-icons-png.flaticon.com/512/4712/4712009.png", width=70, output_format="PNG") # Logo décoratif
     st.markdown("### Campus CRCD")
     st.markdown("---")
-    if st.button("🏠 Accueil"): st.session_state.page = "home"; st.rerun()
+    
+    # LOGIQUE BOUTON ACCUEIL : N'apparaît PAS si on est déjà sur Home
+    if st.session_state.page != "home":
+        if st.button("🏠 Retour Accueil"): st.session_state.page = "home"; st.rerun()
+        
     if st.button("❓ Aide"): afficher_notice()
 
 # =========================================================
@@ -163,54 +188,51 @@ with st.sidebar:
 # =========================================================
 if st.session_state.page == "home":
     
-    # Structure : Texte à gauche, Image + Bouton à droite
     col_text, col_visual = st.columns([1.4, 1])
     
     with col_text:
-        # Titre
-        st.markdown('<div class="titre-accueil">Excellence en<br>Relation Client</div>', unsafe_allow_html=True)
-        st.markdown('<div class="sous-titre">Entraînez-vous face à des clients virtuels (IA).<br>Améliorez votre discours, votre ton et votre réactivité.</div>', unsafe_allow_html=True)
+        st.markdown('<h1 class="titre-accueil">Excellence en<br>Relation Client</h1>', unsafe_allow_html=True)
+        st.markdown('<p class="sous-titre">Entraînez-vous face à des clients virtuels.<br>Améliorez votre discours, votre ton et votre réactivité.</p>', unsafe_allow_html=True)
         
-        # Les objectifs REFORMULÉS (Plus clairs)
         st.markdown("""
         <div class="card">
-            <h3>🛡️ Pratiquez sans risque (Zone d'essai)</h3>
-            <p>Testez vos approches et commettez vos erreurs ici, pour être parfait face aux vrais clients.</p>
+            <h3>🛡️ Pratiquez sans risque</h3>
+            <p>Un espace d'entraînement sécurisé pour tester vos réflexes.</p>
         </div>
         <div class="card">
             <h3>🗣️ Automatisez votre Trame</h3>
-            <p>Ancrez les réflexes verbaux (SBAM, 4C, Prise de congé) pour gagner en fluidité naturelle.</p>
+            <p>Ancrez les réflexes verbaux (SBAM, 4C) pour gagner en fluidité.</p>
         </div>
         <div class="card">
             <h3>⏱️ Maîtrisez le Temps (DMT)</h3>
-            <p>Apprenez à concilier écoute active et rapidité de traitement.</p>
+            <p>Apprenez à concilier écoute active et rapidité.</p>
         </div>
         """, unsafe_allow_html=True)
 
     with col_visual:
-        # NOUVELLE IMAGE : Plus professionnelle, focus sur le matériel (Casque)
-        # Lien Unsplash stable et pro
-        st.image("https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=1000&auto=format&fit=crop", use_container_width=True)
+        # Image avec texte alternatif (Alt) pour l'accessibilité
+        st.image("https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=1000&auto=format&fit=crop", 
+                 use_container_width=True)
         
-        # LE BOUTON D'ACTION
-        st.markdown("###") # Espace
+        st.markdown("###") 
         if st.button("🚀 DÉMARRER L'ENTRAÎNEMENT", use_container_width=True):
             st.session_state.page = "choix_scenario"
             st.rerun()
-        st.caption("👆 Accès immédiat au simulateur")
+        st.caption("👆 Accès au simulateur")
 
     st.markdown("---")
     
-    # Glossaire en bas
     with st.expander("📚 Glossaire Technique & Compétences"):
         for k, v in GLOSSAIRE.items():
             st.markdown(f"**🔹 {k}** : {v['definition']}")
+            
+    afficher_footer()
 
 # =========================================================
 # PAGE CHOIX SCENARIO
 # =========================================================
 elif st.session_state.page == "choix_scenario":
-    st.markdown('<div class="titre-accueil" style="font-size:32px; text-align:center;">Choisissez votre interlocuteur</div>', unsafe_allow_html=True)
+    st.markdown('<h1 style="text-align:center; color:#0F172A;">Choisissez votre interlocuteur</h1>', unsafe_allow_html=True)
     st.markdown("###")
     
     c1, c2, c3 = st.columns(3)
@@ -226,11 +248,13 @@ elif st.session_state.page == "choix_scenario":
         
     with c3:
         st.image("https://cdn-icons-png.flaticon.com/512/4140/4140037.png", width=80)
-        st.error("**Marc (Niveau 3)**\n\nClient pressé. Objectif : Rebond commercial (Vente).")
+        st.error("**Marc (Niveau 3)**\n\nClient pressé. Objectif : Rebond commercial.")
         if st.button("Appeler Marc"): st.session_state.selected=SCENARIOS["SCENARIO_3"]; st.session_state.page="sim"; st.rerun()
     
     st.markdown("---")
-    if st.button("⬅️ Revenir à l'accueil"): st.session_state.page="home"; st.rerun()
+    if st.button("⬅️ Retour"): st.session_state.page="home"; st.rerun()
+    
+    afficher_footer()
 
 # =========================================================
 # PAGE SIMULATION
@@ -298,3 +322,5 @@ elif st.session_state.page == "sim":
             with c1: st.download_button("📥 Feedback", fb, "Feedback.txt", use_container_width=True)
             with c2: st.download_button("📜 Script", vb, "Script.txt", use_container_width=True)
             st.session_state.analyse_demandee = False
+            
+    afficher_footer()
