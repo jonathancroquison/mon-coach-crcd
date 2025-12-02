@@ -1,3 +1,4 @@
+
 import streamlit as st
 import google.generativeai as genai
 import time
@@ -33,13 +34,12 @@ else:
 
 def transcrire_audio(audio_bytes):
     """
-    Envoie l'audio à Gemini avec une température à 0 pour une transcription fidèle.
-    Filtre les hallucinations (bruit de fond, silence).
+    Envoie l'audio à Gemini pour transcription.
+    CORRECTION : Utilise le format WebM (natif navigateur) pour éviter les erreurs.
     """
     try:
         model = genai.GenerativeModel('gemini-2.0-flash')
         
-        # PROMPT STRICT (SYSTEM)
         prompt_transcription = """
         Tu es un expert en transcription phonétique.
         Ta tâche : Convertir cet audio en texte français.
@@ -47,25 +47,25 @@ def transcrire_audio(audio_bytes):
         1. Écris EXACTEMENT ce que tu entends.
         2. Si le son est inaudible, s'il n'y a que du bruit de fond ou du silence, RÉPONDS UNIQUEMENT PAR "..." (trois points).
         3. N'invente AUCUN mot. Ne complète pas les phrases.
-        4. Ne réponds pas à la question posée dans l'audio, contente-toi de le transcrire.
         """
         
-        # On force la température à 0 (aucune créativité) pour la fidélité
+        # On force la température à 0 pour la fidélité
         config = genai.types.GenerationConfig(temperature=0.0)
         
+        # CORRECTION : On précise le mime_type audio/webm
         response = model.generate_content(
-            [prompt_transcription, {"mime_type": "audio/wav", "data": audio_bytes}],
+            [prompt_transcription, {"mime_type": "audio/webm", "data": audio_bytes}],
             generation_config=config
         )
         
-        # Nettoyage : Si l'IA renvoie juste des points ou du vide
         texte = response.text.strip()
         if texte == "..." or texte == "":
             return None
         return texte
 
     except Exception as e:
-        return f"Erreur transcription : {e}"
+        st.error(f"Erreur technique lors de la transcription : {e}")
+        return None
 
 def parler(texte, langue='fr'):
     """Transforme le texte en fichier audio MP3 via Google TTS"""
@@ -83,15 +83,12 @@ def obtenir_reponse_gemini(message_utilisateur, historique, prompt_systeme):
         
         # Construction de l'historique pour Gemini
         history_gemini = []
-        # Prompt système initial
         history_gemini.append({"role": "user", "parts": [prompt_systeme]})
         history_gemini.append({"role": "model", "parts": ["C'est compris, je rentre dans le personnage."]})
         
-        # Ajout de l'historique de chat
         for msg in historique:
             if msg["role"] != "system":
                 role_gemini = "user" if msg["role"] == "user" else "model"
-                # On s'assure de ne passer que du texte à Gemini (pas l'objet audio)
                 history_gemini.append({"role": role_gemini, "parts": [msg["content"]]})
         
         chat = model.start_chat(history=history_gemini)
@@ -122,17 +119,15 @@ if "last_audio_id" not in st.session_state: st.session_state.last_audio_id = Non
 # =========================================================
 if st.session_state.page == "notice":
     st.title("🎧 Coach CRCD - Mode Vocal 🎙️")
-    st.info("Nouveau : Amélioration de la reconnaissance vocale !")
+    st.info("Système audio connecté et prêt.")
     
     with st.expander("📖 COMMENT UTILISER LA VOIX ?", expanded=True):
         st.markdown("""
-        **Instructions pour une bonne expérience :**
+        **Instructions :**
         1. Cliquez sur **"🔴 Enregistrer"** (Barre latérale).
-        2. Parlez **distinctement** et assez fort.
-        3. Cliquez sur **"⏹️ Envoyer"** quand vous avez fini.
-        4. Attendez quelques secondes : votre texte apparaîtra et l'IA répondra à l'oral.
-        
-        *Note : Si l'IA n'entend rien (bruit de fond), elle ne répondra pas. Réessayez.*
+        2. Parlez **distinctement**.
+        3. Cliquez sur **"⏹️ Envoyer"** (Stop).
+        4. Attendez que votre texte apparaisse.
         """)
         
     if st.button("JE SUIS PRÊT - ACCÉDER AUX SCÉNARIOS ➡️"):
@@ -203,13 +198,13 @@ elif st.session_state.page == "simulation":
             st.markdown("---")
             st.write("**🎙️ PARLER AU CLIENT :**")
             
-            # --- BOUTON MICROPHONE AMÉLIORÉ ---
+            # --- BOUTON MICROPHONE CORRIGÉ (WEBM) ---
             audio_data = mic_recorder(
                 start_prompt="🔴 Enregistrer (Parlez fort)",
                 stop_prompt="⏹️ Envoyer",
                 just_once=True,
                 key='recorder',
-                format="wav" # IMPORTANT : Format WAV pour meilleure qualité
+                format="webm" # <--- IMPORTANT : Format WebM pour éviter les erreurs
             )
             
             st.markdown("---")
@@ -232,57 +227,79 @@ elif st.session_state.page == "simulation":
         if msg["role"] != "system":
             with st.chat_message(msg["role"], avatar=("🧑‍💻" if msg["role"] == "user" else scenario['image'])):
                 st.write(msg["content"])
-                # Lecteur audio pour les réponses IA
                 if "audio" in msg and msg["audio"] is not None:
                     st.audio(msg["audio"], format="audio/mp3")
 
-    # 2. LOGIQUE MICROPHONE (Traitement de l'audio reçu)
+    # 2. LOGIQUE MICROPHONE
     if st.session_state.appel_en_cours and audio_data is not None:
         current_audio_id = audio_data['id']
         if current_audio_id != st.session_state.last_audio_id:
             st.session_state.last_audio_id = current_audio_id
             
             with st.spinner("Transcription de votre voix..."):
+                # On envoie les bytes directement (format WebM)
                 texte_apprenant = transcrire_audio(audio_data['bytes'])
             
             if texte_apprenant:
                 st.session_state.messages.append({"role": "user", "content": texte_apprenant})
                 st.rerun()
             else:
-                st.toast("⚠️ Je n'ai rien entendu, veuillez répéter plus fort.", icon="🔇")
+                st.toast("⚠️ Audio non compris ou silencieux.", icon="🔇")
 
-    # 3. LOGIQUE CLAVIER (Alternative)
+    # 3. LOGIQUE CLAVIER
     if st.session_state.appel_en_cours:
         reponse_texte = st.chat_input("Ou écrivez votre réponse ici...")
         if reponse_texte:
             st.session_state.messages.append({"role": "user", "content": reponse_texte})
             st.rerun()
 
-    # 4. RÉPONSE IA (Génération texte + audio)
+    # 4. RÉPONSE IA
     if st.session_state.messages and st.session_state.messages[-1]["role"] == "user" and st.session_state.appel_en_cours:
         with st.chat_message("assistant", avatar=scenario['image']):
             with st.spinner(f"{scenario['titre'].split(':')[1]} réfléchit..."):
-                # A. Texte
                 rep_ia = obtenir_reponse_gemini(
                     st.session_state.messages[-1]["content"], 
                     st.session_state.messages[:-1],
                     scenario['client_prompt']
                 )
                 
-                # B. Audio
                 audio_file = parler(rep_ia)
-                
                 st.write(rep_ia)
                 if audio_file:
                     st.audio(audio_file, format='audio/mp3', start_time=0)
         
         st.session_state.messages.append({"role": "assistant", "content": rep_ia, "audio": audio_file})
 
-    # 5. FEEDBACK COACH
+    # 5. FEEDBACK COACH & TÉLÉCHARGEMENT
     if hasattr(st.session_state, 'analyse_demandee') and st.session_state.analyse_demandee:
         st.divider()
         st.subheader("📝 Rapport du Coach")
+        
         with st.spinner("Le coach analyse votre appel..."):
-            txt = "\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.messages if m['role']!='system'])
-            st.info(analyse_coach(txt, scenario['coach_prompt']))
+            txt_conversation = "\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.messages if m['role']!='system'])
+            analyse_resultat = analyse_coach(txt_conversation, scenario['coach_prompt'])
+            
+            st.info(analyse_resultat)
+            
+            # Création du fichier Bilan
+            rapport_complet = f"""
+            BILAN DE FORMATION CRCD
+            Date : {time.strftime("%d/%m/%Y à %H:%M")}
+            Scénario : {scenario['titre']}
+            DMT : {int(time.time() - st.session_state.start_time) if st.session_state.start_time else 0} sec
+            
+            --- ANALYSE ---
+            {analyse_resultat}
+            
+            --- TRANSCRIPTION ---
+            {txt_conversation}
+            """
+            
+            st.download_button(
+                label="📥 TÉLÉCHARGER MON BILAN (TXT)",
+                data=rapport_complet,
+                file_name=f"Bilan_{scenario['titre'].split(':')[0].strip()}.txt",
+                mime="text/plain"
+            )
+            
             st.session_state.analyse_demandee = False
