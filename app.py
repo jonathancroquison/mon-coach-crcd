@@ -2,8 +2,7 @@ import streamlit as st
 import google.generativeai as genai
 import time
 import re
-import asyncio # NOUVEAU : Gère la boucle asynchrone
-import edge_tts 
+from gtts import gTTS
 from streamlit_mic_recorder import mic_recorder
 import io
 
@@ -21,21 +20,82 @@ st.set_page_config(
     layout="wide",
     page_icon="🎧",
     initial_sidebar_state="expanded",
-    menu_items={'About': "Simulateur pédagogique CRCD - @croquison 2025"}
+    menu_items={
+        'About': "Simulateur pédagogique CRCD - @croquison 2025"
+    }
 )
 
-# --- CSS / DESIGN ---
+# --- CSS / DESIGN & ACCESSIBILITÉ ---
 st.markdown("""
 <style>
-    /* Omitted CSS for brevity, assumes previous V6.0 CSS is used */
-    html, body, [class*="css"] { font-family: 'Segoe UI', Helvetica, sans-serif; }
-    .titre-accueil { font-size: 42px; font-weight: 800; color: #0F172A; line-height: 1.2; margin-top: -20px; margin-bottom: 15px; }
-    .sous-titre { font-size: 18px; color: #334155; margin-bottom: 25px; line-height: 1.5; }
-    .card { background-color: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 15px; border-left: 6px solid #2563EB; }
+    /* TYPOGRAPHIE & LISIBILITÉ */
+    html, body, [class*="css"] {
+        font-family: 'Segoe UI', Helvetica, sans-serif;
+    }
+    
+    /* Titre Principal (H1) */
+    .titre-accueil { 
+        font-size: 42px; 
+        font-weight: 800; 
+        color: #0F172A; /* Contraste fort (WCAG AAA) */
+        line-height: 1.2;
+        margin-top: -20px;
+        margin-bottom: 15px;
+    }
+    
+    /* Sous-titre */
+    .sous-titre {
+        font-size: 18px;
+        color: #334155; /* Gris foncé lisible */
+        margin-bottom: 25px;
+        line-height: 1.5;
+    }
+
+    /* Cartes Objectifs */
+    .card {
+        background-color: white;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        margin-bottom: 15px;
+        border-left: 6px solid #2563EB; /* Marqueur visuel fort */
+    }
     .card h3 { margin: 0 0 8px 0; font-size: 18px; color: #1E40AF; font-weight: 700; }
-    .stButton>button { width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; background-color: #2563EB; color: white; transition: all 0.2s; }
-    .stButton>button:hover { background-color: #1D4ED8; transform: scale(1.01); }
-    .footer { width: 100%; text-align: center; margin-top: 50px; padding-top: 20px; border-top: 1px solid #E2E8F0; color: #64748B; font-size: 14px; font-style: italic; }
+    .card p { margin: 0; font-size: 16px; color: #1E293B; }
+
+    /* Boutons : Focus visible et contraste */
+    .stButton>button { 
+        width: 100%;
+        border-radius: 8px; 
+        font-weight: bold; 
+        height: 3.5em;
+        border: none;
+        background-color: #2563EB;
+        color: white;
+        font-size: 16px; /* Texte plus grand */
+        transition: all 0.2s;
+    }
+    .stButton>button:hover {
+        background-color: #1D4ED8;
+        transform: scale(1.01);
+    }
+    .stButton>button:focus {
+        outline: 3px solid #FCD34D; /* Focus visible pour navigation clavier */
+    }
+    
+    /* FOOTER (Pied de page) */
+    .footer {
+        width: 100%;
+        text-align: center;
+        margin-top: 50px;
+        padding-top: 20px;
+        border-top: 1px solid #E2E8F0;
+        color: #64748B;
+        font-size: 14px;
+        font-style: italic;
+    }
+    
+    /* Score */
     .big-score { font-size: 60px; font-weight: 900; text-align: center; color: #1E3A8A; }
 </style>
 """, unsafe_allow_html=True)
@@ -44,43 +104,7 @@ st.markdown("""
 if "GOOGLE_API_KEY" in st.secrets:
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 
-# --- FONCTION VOCALE NEURONALE (ROBUSTE) ---
-
-async def generer_audio_hd(texte, voix):
-    """Génère l'audio avec Edge-TTS (Voix Microsoft Azure)"""
-    # Ce code est asynchrone et doit être appelé par un run_until_complete
-    communicate = edge_tts.Communicate(texte, voix)
-    out_bytes = io.BytesIO()
-    async for chunk in communicate.stream():
-        if chunk["type"] == "audio":
-            out_bytes.write(chunk["data"])
-    out_bytes.seek(0)
-    return out_bytes
-
-def parler(texte, avatar_nom):
-    """Choisit la bonne voix selon l'avatar et lance la génération"""
-    try:
-        voix = "fr-FR-HenriNeural" # Par défaut
-        if "Sarah" in avatar_nom: voix = "fr-FR-DeniseNeural"
-        elif "Marc" in avatar_nom: voix = "fr-FR-RemyNeural"
-            
-        # --- FIX ROBUSTE POUR ASYNCIO ---
-        # On crée et on ferme manuellement la boucle d'événements
-        loop = asyncio.new_event_loop()
-        audio_bytes = loop.run_until_complete(generer_audio_hd(texte, voix))
-        loop.close()
-        
-        # Sécurité : Si le fichier est trop petit (erreur de connexion)
-        if not audio_bytes or audio_bytes.getbuffer().nbytes < 100:
-            st.toast("⚠️ Échec de la génération audio (fichier vide).", icon="🔇")
-            return None
-        
-        return audio_bytes
-    except Exception as e:
-        st.error(f"Erreur critique du moteur vocal Edge-TTS. Recommencez l'appel. Détails : {e}")
-        return None
-
-# --- AUTRES FONCTIONS ---
+# --- FONCTIONS UTILITAIRES ---
 def extraire_score(texte_coach):
     match = re.search(r"\[SCORE:(\d+)\]", texte_coach)
     return int(match.group(1)) if match else 0 
@@ -91,6 +115,7 @@ def afficher_barometre(score):
     col_jauge, col_verdict = st.columns([3, 1])
     with col_jauge:
         st.progress(score / 100)
+        # Utilisation de couleurs standards pour daltoniens (Rouge/Orange/Vert reste standard mais le texte aide)
         if score < 50: st.error(f"🔴 {score}/100 - Insuffisant")
         elif score < 80: st.warning(f"🟠 {score}/100 - En acquisition")
         else: st.success(f"🟢 {score}/100 - Maîtrisé")
@@ -107,6 +132,14 @@ def transcrire_audio(audio_bytes):
         )
         t = response.text.strip()
         return None if t in ["...", ""] else t
+    except: return None
+
+def parler(texte, langue='fr'):
+    try:
+        tts = gTTS(text=texte, lang=langue, slow=False)
+        fp = io.BytesIO()
+        tts.write_to_fp(fp)
+        return fp
     except: return None
 
 def obtenir_reponse_gemini(msg, hist, prompt):
@@ -134,17 +167,20 @@ def afficher_notice():
 # --- NAVIGATION ---
 if "page" not in st.session_state: st.session_state.page = "home"
 if "messages" not in st.session_state: st.session_state.messages = [] 
-if "appel_en_cours" not in st.session_state.appel_en_cours = False
+if "appel_en_cours" not in st.session_state: st.session_state.appel_en_cours = False
 if "start_time" not in st.session_state: st.session_state.start_time = None
 if "last_audio_id" not in st.session_state: st.session_state.last_audio_id = None
 
-# --- SIDEBAR ---
+# --- SIDEBAR (NAVIGATION) ---
 with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/4712/4712009.png", width=70)
+    st.image("https://cdn-icons-png.flaticon.com/512/4712/4712009.png", width=70, output_format="PNG") # Logo décoratif
     st.markdown("### Campus CRCD")
     st.markdown("---")
+    
+    # LOGIQUE BOUTON ACCUEIL : N'apparaît PAS si on est déjà sur Home
     if st.session_state.page != "home":
         if st.button("🏠 Retour Accueil"): st.session_state.page = "home"; st.rerun()
+        
     if st.button("❓ Aide"): afficher_notice()
 
 # =========================================================
@@ -156,15 +192,27 @@ if st.session_state.page == "home":
     
     with col_text:
         st.markdown('<h1 class="titre-accueil">Excellence en<br>Relation Client</h1>', unsafe_allow_html=True)
-        st.markdown('<p class="sous-titre">Entraînez-vous face à des clients virtuels réalistes.<br>Améliorez votre discours, votre ton et votre réactivité.</p>', unsafe_allow_html=True)
+        st.markdown('<p class="sous-titre">Entraînez-vous face à des clients virtuels.<br>Améliorez votre discours, votre ton et votre réactivité.</p>', unsafe_allow_html=True)
+        
         st.markdown("""
-        <div class="card"><h3>🛡️ Pratiquez sans risque</h3><p>Un espace d'entraînement sécurisé pour tester vos réflexes.</p></div>
-        <div class="card"><h3>🗣️ Automatisez votre Trame</h3><p>Ancrez les réflexes verbaux (SBAM, 4C) pour gagner en fluidité.</p></div>
-        <div class="card"><h3>⏱️ Maîtrisez le Temps (DMT)</h3><p>Apprenez à concilier écoute active et rapidité.</p></div>
+        <div class="card">
+            <h3>🛡️ Pratiquez sans risque</h3>
+            <p>Un espace d'entraînement sécurisé pour tester vos réflexes.</p>
+        </div>
+        <div class="card">
+            <h3>🗣️ Automatisez votre Trame</h3>
+            <p>Ancrez les réflexes verbaux (SBAM, 4C) pour gagner en fluidité.</p>
+        </div>
+        <div class="card">
+            <h3>⏱️ Maîtrisez le Temps (DMT)</h3>
+            <p>Apprenez à concilier écoute active et rapidité.</p>
+        </div>
         """, unsafe_allow_html=True)
 
     with col_visual:
-        st.image("https://img.freepik.com/free-photo/customer-service-agent-working_23-2149240166.jpg", use_container_width=True)
+        # Image avec texte alternatif (Alt) pour l'accessibilité
+        st.image("https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=1000&auto=format&fit=crop", 
+                 use_container_width=True)
         
         st.markdown("###") 
         if st.button("🚀 DÉMARRER L'ENTRAÎNEMENT", use_container_width=True):
@@ -175,7 +223,8 @@ if st.session_state.page == "home":
     st.markdown("---")
     
     with st.expander("📚 Glossaire Technique & Compétences"):
-        for k, v in GLOSSAIRE.items(): st.markdown(f"**🔹 {k}** : {v['definition']}")
+        for k, v in GLOSSAIRE.items():
+            st.markdown(f"**🔹 {k}** : {v['definition']}")
             
     afficher_footer()
 
@@ -191,10 +240,12 @@ elif st.session_state.page == "choix_scenario":
         st.image("https://cdn-icons-png.flaticon.com/512/4140/4140048.png", width=80)
         st.info("**Théo (Niveau 1)**\n\nAppel simple. Idéal pour valider la trame de base.")
         if st.button("Appeler Théo"): st.session_state.selected=SCENARIOS["SCENARIO_1"]; st.session_state.page="sim"; st.rerun()
+    
     with c2:
         st.image("https://cdn-icons-png.flaticon.com/512/4140/4140047.png", width=80)
         st.warning("**Sarah (Niveau 2)**\n\nCliente mécontente. Travail sur la gestion de conflit.")
         if st.button("Appeler Sarah"): st.session_state.selected=SCENARIOS["SCENARIO_2"]; st.session_state.page="sim"; st.rerun()
+        
     with c3:
         st.image("https://cdn-icons-png.flaticon.com/512/4140/4140037.png", width=80)
         st.error("**Marc (Niveau 3)**\n\nClient pressé. Objectif : Rebond commercial.")
@@ -247,9 +298,7 @@ elif st.session_state.page == "sim":
         with st.chat_message("assistant", avatar=sc['image']):
             with st.spinner("..."):
                 r = obtenir_reponse_gemini(st.session_state.messages[-1]["content"], st.session_state.messages[:-1], sc['client_prompt'])
-                
-                # Correction audio : utilise le fix robuste
-                a = parler(r, sc['titre']) 
+                a = parler(r)
                 st.write(r)
                 if a: st.audio(a, format='audio/mp3', start_time=0, autoplay=True)
         st.session_state.messages.append({"role":"assistant", "content":r, "audio":a})
@@ -264,11 +313,14 @@ elif st.session_state.page == "sim":
             afficher_barometre(score)
             clean_res = res.replace(f"[SCORE:{score}]", "")
             st.info(clean_res)
+            
             fb = f"BILAN\nDate: {time.strftime('%d/%m/%Y')}\nNOTE: {score}/100\n\n{clean_res}"
             vb = f"SCRIPT\n\n{conv}"
+            
             st.write("### 💾 Sauvegarder")
             c1, c2 = st.columns(2)
             with c1: st.download_button("📥 Feedback", fb, "Feedback.txt", use_container_width=True)
             with c2: st.download_button("📜 Script", vb, "Script.txt", use_container_width=True)
             st.session_state.analyse_demandee = False
+            
     afficher_footer()
