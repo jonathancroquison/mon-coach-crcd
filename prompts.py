@@ -1,5 +1,5 @@
 # prompts.py
-# Scénarios et Critères de Notation avec formatage pour le Baromètre
+# Scénarios et Critères de Notation SÉVÈRES (Version Formative)
 
 SCENARIOS = {
     "SCENARIO_1": {
@@ -12,14 +12,33 @@ SCENARIOS = {
             Succès : Remboursement accepté.
         """,
         "coach_prompt": """
-            Rôle : Coach Qualité.
-            Analyse l'appel selon ces 4 indicateurs précis :
-            1. ACCUEIL (20pts) : SBAM respecté ?
-            2. DÉCOUVERTE (30pts) : Identification faite ? Écoute active ?
-            3. SOLUTION (30pts) : Réponse claire et directivité ?
-            4. CONGÉ (20pts) : Récapitulatif et prise de congé ?
+            Rôle : Auditeur Qualité EXIGEANT et SÉVÈRE.
+            Ton but est de faire progresser l'apprenant en ne laissant rien passer.
+            
+            BARÈME DE NOTATION STRICT (Sur 100) :
+            
+            1. ACCUEIL (20pts) :
+               - 0/20 : Pas de bonjour.
+               - 5/20 : Juste "Bonjour" (Insuffisant).
+               - 10/20 : Bonjour + Nom de l'entreprise.
+               - 20/20 : SBAM Complet (Sourire ressenti + Bonjour + Entreprise + "Je vous écoute").
+            
+            2. DÉCOUVERTE (30pts) :
+               - Pénalité de -10pts si l'identité (Nom + Dossier) n'est pas validée dès le début.
+               - Pénalité de -10pts si l'apprenant coupe la parole.
+               - Il faut de la reformulation ("Si je comprends bien...").
+            
+            3. SOLUTION & DIRECTIVITÉ (30pts) :
+               - L'apprenant a-t-il recadré tes digressions sur les vacances ? (Sinon -15pts).
+               - La solution (remboursement) est-elle claire ?
+            
+            4. CONGÉ (20pts) :
+               - Il faut impérativement : Récapitulatif + "Avez-vous d'autres questions ?" + Remerciement + Au revoir.
+               - Sinon, note maximale de 10/20 sur ce point.
 
-            IMPORTANT : Termine ta réponse par une ligne contenant UNIQUEMENT le score global sur 100 entre crochets, exactement comme ceci : [SCORE:85]
+            FORMAT DE RÉPONSE ATTENDU :
+            - Pour chaque point, explique l'erreur si la note n'est pas maximale.
+            - Termine ta réponse par une ligne contenant UNIQUEMENT le score global sur 100 entre crochets, ex: [SCORE:45]
         """
     },
     "SCENARIO_2": {
@@ -32,14 +51,30 @@ SCENARIOS = {
             Succès : Tu restes si geste commercial ou excuses sincères.
         """,
         "coach_prompt": """
-            Rôle : Expert Rétention.
-            Analyse selon ces 4 indicateurs :
-            1. EMPATHIE (30pts) : A-t-il accueilli l'émotion sans couper la parole ?
-            2. COMPRÉHENSION (20pts) : A-t-il identifié la cause racine (appel coupé) ?
-            3. ARGUMENTATION (30pts) : A-t-il valorisé la fidélité avant de parler prix ?
-            4. POSTURE (20pts) : Ton de voix calme et professionnel ?
+            Rôle : Expert Rétention (Notation Sévère).
+            Ne donne pas de points pour la politesse basique, cherche la technique émotionnelle.
+            
+            BARÈME DE NOTATION STRICT (Sur 100) :
+            
+            1. EMPATHIE & VIDANGE (30pts) :
+               - Si l'apprenant dit "Calmez-vous" ou coupe la parole : 0/30 (Éliminatoire).
+               - Il doit dire "Je comprends votre mécontentement" ou "Je suis désolé de cette situation".
+            
+            2. COMPRÉHENSION (20pts) :
+               - A-t-il compris que le VRAI problème n'est pas le prix, mais l'appel coupé d'hier ?
+               - Reformulation obligatoire.
+            
+            3. ARGUMENTATION (30pts) :
+               - Si proposition de prix immédiate sans défendre la marque : 10/30.
+               - Il doit valoriser le client ("Vous êtes fidèle depuis...") avant de proposer une remise.
+            
+            4. POSTURE (20pts) :
+               - Pas de mots noirs (Problème, Souci, Grave, Non).
+               - Ton de voix calme et rassurant.
 
-            IMPORTANT : Termine ta réponse par une ligne contenant UNIQUEMENT le score global sur 100 entre crochets, exactement comme ceci : [SCORE:85]
+            FORMAT DE RÉPONSE ATTENDU :
+            - Soyez critique et constructif.
+            - Termine ta réponse par une ligne contenant UNIQUEMENT le score global sur 100 entre crochets, ex: [SCORE:60]
         """
     },
     "SCENARIO_3": {
@@ -52,14 +87,28 @@ SCENARIOS = {
             Succès : Tu achètes un mobile si on te le propose bien.
         """,
         "coach_prompt": """
-            Rôle : Coach Commercial.
-            Analyse selon ces 4 indicateurs :
-            1. RÉACTIVITÉ (20pts) : Demande traitée rapidement ?
-            2. ÉCOUTE (30pts) : Indices (téléphone lent) repérés ?
-            3. REBOND (40pts) : Tentative de vente additionnelle faite ?
-            4. CLOSING (10pts) : Validation de la vente ?
+            Rôle : Coach Commercial (Orientation Résultat).
+            
+            BARÈME DE NOTATION STRICT (Sur 100) :
+            
+            1. TRAITEMENT DEMANDE (20pts) :
+               - Rapide et efficace (Option Voyage activée).
+            
+            2. ÉCOUTE ACTIVE (30pts) :
+               - A-t-il relevé l'indice "Mon téléphone est lent" ?
+               - Si l'indice est ignoré : 0/30 sur ce point.
+            
+            3. REBOND COMMERCIAL (40pts) :
+               - A-t-il proposé un nouveau téléphone ?
+               - A-t-il utilisé la méthode CAB (Caractéristique, Avantage, Bénéfice) ?
+               - Si aucune proposition de vente : 0/40.
+            
+            4. CLOSING (10pts) :
+               - Validation ferme de la vente et prise de congé dynamique.
 
-            IMPORTANT : Termine ta réponse par une ligne contenant UNIQUEMENT le score global sur 100 entre crochets, exactement comme ceci : [SCORE:85]
+            FORMAT DE RÉPONSE ATTENDU :
+            - Si pas de vente additionnelle, la note ne peut pas dépasser 60/100.
+            - Termine ta réponse par une ligne contenant UNIQUEMENT le score global sur 100 entre crochets, ex: [SCORE:55]
         """
     }
 }
