@@ -25,23 +25,24 @@ st.set_page_config(
 # --- CSS / DESIGN ---
 st.markdown("""
 <style>
-    /* Titre Principal : Césure contrôlée et sans marge haute inutile */
+    /* Titre Principal */
     .titre-accueil { 
         font-family: 'Helvetica Neue', sans-serif;
         font-size: 42px; 
         font-weight: 800; 
-        color: #1E3A8A; /* Bleu nuit */
+        color: #0F172A; /* Bleu très sombre, presque noir */
         line-height: 1.2;
         margin-top: -20px;
-        margin-bottom: 20px;
+        margin-bottom: 15px;
     }
     
-    /* Sous-titre : Gris bleuté */
+    /* Sous-titre */
     .sous-titre {
-        font-size: 20px;
+        font-size: 18px;
         color: #475569;
-        margin-bottom: 30px;
+        margin-bottom: 25px;
         line-height: 1.5;
+        font-weight: 400;
     }
 
     /* Cartes Objectifs */
@@ -49,24 +50,31 @@ st.markdown("""
         background-color: white;
         padding: 15px;
         border-radius: 12px;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-        margin-bottom: 10px;
-        border-left: 4px solid #3B82F6;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        margin-bottom: 12px;
+        border-left: 5px solid #2563EB; /* Bleu royal */
+        transition: transform 0.2s;
     }
-    .card h3 { margin: 0 0 5px 0; font-size: 18px; color: #1E3A8A; }
-    .card p { margin: 0; font-size: 14px; color: #64748B; }
+    .card:hover {
+        transform: translateX(5px);
+    }
+    .card h3 { margin: 0 0 5px 0; font-size: 18px; color: #1E40AF; font-weight: 700; }
+    .card p { margin: 0; font-size: 15px; color: #334155; }
 
-    /* Boutons : Plus larges et gras */
+    /* Boutons */
     .stButton>button { 
         width: 100%;
         border-radius: 8px; 
         font-weight: bold; 
-        height: 3em;
+        height: 3.5em;
         border: none;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        background-color: #2563EB;
+        color: white;
+        box-shadow: 0 4px 6px rgba(37, 99, 235, 0.2);
         transition: all 0.2s;
     }
     .stButton>button:hover {
+        background-color: #1D4ED8;
         transform: scale(1.02);
     }
     
@@ -156,44 +164,45 @@ with st.sidebar:
 if st.session_state.page == "home":
     
     # Structure : Texte à gauche, Image + Bouton à droite
-    col_text, col_visual = st.columns([1.3, 1])
+    col_text, col_visual = st.columns([1.4, 1])
     
     with col_text:
-        # Titre avec césure contrôlée (<br>)
-        st.markdown('<div class="titre-accueil">Devenez un Expert<br>de la Relation Client</div>', unsafe_allow_html=True)
-        st.markdown('<div class="sous-titre">Le simulateur conversationnel intelligent<br>pour s\'entraîner à la réalité du métier.</div>', unsafe_allow_html=True)
+        # Titre
+        st.markdown('<div class="titre-accueil">Excellence en<br>Relation Client</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sous-titre">Entraînez-vous face à des clients virtuels (IA).<br>Améliorez votre discours, votre ton et votre réactivité.</div>', unsafe_allow_html=True)
         
-        # Les objectifs (Cartes compactes)
+        # Les objectifs REFORMULÉS (Plus clairs)
         st.markdown("""
         <div class="card">
-            <h3>🛡️ Droit à l'erreur</h3>
-            <p>Un espace sécurisé pour tester vos réflexes sans risque réel.</p>
+            <h3>🛡️ Pratiquez sans risque (Zone d'essai)</h3>
+            <p>Testez vos approches et commettez vos erreurs ici, pour être parfait face aux vrais clients.</p>
         </div>
         <div class="card">
-            <h3>🗣️ Maîtrise de la Trame</h3>
-            <p>SBAM, Identification, Reformulation : répétez jusqu'à l'excellence.</p>
+            <h3>🗣️ Automatisez votre Trame</h3>
+            <p>Ancrez les réflexes verbaux (SBAM, 4C, Prise de congé) pour gagner en fluidité naturelle.</p>
         </div>
         <div class="card">
-            <h3>⏱️ Performance DMT</h3>
-            <p>Apprenez à gérer les bavards et à optimiser votre temps.</p>
+            <h3>⏱️ Maîtrisez le Temps (DMT)</h3>
+            <p>Apprenez à concilier écoute active et rapidité de traitement.</p>
         </div>
         """, unsafe_allow_html=True)
 
     with col_visual:
-        # L'image d'illustration
-        st.image("https://img.freepik.com/free-photo/customer-service-agent-working_23-2149240166.jpg", use_container_width=True)
+        # NOUVELLE IMAGE : Plus professionnelle, focus sur le matériel (Casque)
+        # Lien Unsplash stable et pro
+        st.image("https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=1000&auto=format&fit=crop", use_container_width=True)
         
-        # LE BOUTON D'ACTION DIRECTEMENT SOUS L'IMAGE
-        st.markdown("###") # Petit espace
-        if st.button("🚀 LANCER LA SIMULATION", use_container_width=True):
+        # LE BOUTON D'ACTION
+        st.markdown("###") # Espace
+        if st.button("🚀 DÉMARRER L'ENTRAÎNEMENT", use_container_width=True):
             st.session_state.page = "choix_scenario"
             st.rerun()
-        st.caption("👆 Cliquez ici pour démarrer immédiatement.")
+        st.caption("👆 Accès immédiat au simulateur")
 
     st.markdown("---")
     
     # Glossaire en bas
-    with st.expander("📚 Consulter le Glossaire Technique du Conseiller"):
+    with st.expander("📚 Glossaire Technique & Compétences"):
         for k, v in GLOSSAIRE.items():
             st.markdown(f"**🔹 {k}** : {v['definition']}")
 
@@ -207,18 +216,18 @@ elif st.session_state.page == "choix_scenario":
     c1, c2, c3 = st.columns(3)
     with c1:
         st.image("https://cdn-icons-png.flaticon.com/512/4140/4140048.png", width=80)
-        st.info("**Théo (Débutant)**\n\nClient calme. Travaillez la trame de base.")
-        if st.button("Simuler avec Théo"): st.session_state.selected=SCENARIOS["SCENARIO_1"]; st.session_state.page="sim"; st.rerun()
+        st.info("**Théo (Niveau 1)**\n\nAppel simple. Idéal pour valider la trame de base.")
+        if st.button("Appeler Théo"): st.session_state.selected=SCENARIOS["SCENARIO_1"]; st.session_state.page="sim"; st.rerun()
     
     with c2:
         st.image("https://cdn-icons-png.flaticon.com/512/4140/4140047.png", width=80)
-        st.warning("**Sarah (Difficile)**\n\nCliente mécontente. Gérez le conflit.")
-        if st.button("Simuler avec Sarah"): st.session_state.selected=SCENARIOS["SCENARIO_2"]; st.session_state.page="sim"; st.rerun()
+        st.warning("**Sarah (Niveau 2)**\n\nCliente mécontente. Travail sur la gestion de conflit.")
+        if st.button("Appeler Sarah"): st.session_state.selected=SCENARIOS["SCENARIO_2"]; st.session_state.page="sim"; st.rerun()
         
     with c3:
         st.image("https://cdn-icons-png.flaticon.com/512/4140/4140037.png", width=80)
-        st.error("**Marc (Expert)**\n\nClient pressé. Tentez le rebond commercial.")
-        if st.button("Simuler avec Marc"): st.session_state.selected=SCENARIOS["SCENARIO_3"]; st.session_state.page="sim"; st.rerun()
+        st.error("**Marc (Niveau 3)**\n\nClient pressé. Objectif : Rebond commercial (Vente).")
+        if st.button("Appeler Marc"): st.session_state.selected=SCENARIOS["SCENARIO_3"]; st.session_state.page="sim"; st.rerun()
     
     st.markdown("---")
     if st.button("⬅️ Revenir à l'accueil"): st.session_state.page="home"; st.rerun()
