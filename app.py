@@ -2,8 +2,8 @@ import streamlit as st
 import google.generativeai as genai
 import time
 import re
-import asyncio # Nécessaire pour les nouvelles voix
-import edge_tts # Le nouveau moteur vocal HD
+import asyncio # NOUVEAU : Gère la boucle asynchrone
+import edge_tts 
 from streamlit_mic_recorder import mic_recorder
 import io
 
@@ -27,6 +27,7 @@ st.set_page_config(
 # --- CSS / DESIGN ---
 st.markdown("""
 <style>
+    /* Omitted CSS for brevity, assumes previous V6.0 CSS is used */
     html, body, [class*="css"] { font-family: 'Segoe UI', Helvetica, sans-serif; }
     .titre-accueil { font-size: 42px; font-weight: 800; color: #0F172A; line-height: 1.2; margin-top: -20px; margin-bottom: 15px; }
     .sous-titre { font-size: 18px; color: #334155; margin-bottom: 25px; line-height: 1.5; }
@@ -43,8 +44,11 @@ st.markdown("""
 if "GOOGLE_API_KEY" in st.secrets:
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 
-# --- FONCTION VOCALE NEURONALE ---
+# --- FONCTION VOCALE NEURONALE (ROBUSTE) ---
+
 async def generer_audio_hd(texte, voix):
+    """Génère l'audio avec Edge-TTS (Voix Microsoft Azure)"""
+    # Ce code est asynchrone et doit être appelé par un run_until_complete
     communicate = edge_tts.Communicate(texte, voix)
     out_bytes = io.BytesIO()
     async for chunk in communicate.stream():
@@ -54,14 +58,27 @@ async def generer_audio_hd(texte, voix):
     return out_bytes
 
 def parler(texte, avatar_nom):
+    """Choisit la bonne voix selon l'avatar et lance la génération"""
     try:
-        # Voix Microsoft (gratuites via edge-tts)
-        voix = "fr-FR-HenriNeural" 
+        voix = "fr-FR-HenriNeural" # Par défaut
         if "Sarah" in avatar_nom: voix = "fr-FR-DeniseNeural"
         elif "Marc" in avatar_nom: voix = "fr-FR-RemyNeural"
+            
+        # --- FIX ROBUSTE POUR ASYNCIO ---
+        # On crée et on ferme manuellement la boucle d'événements
+        loop = asyncio.new_event_loop()
+        audio_bytes = loop.run_until_complete(generer_audio_hd(texte, voix))
+        loop.close()
         
-        return asyncio.run(generer_audio_hd(texte, voix))
-    except Exception: return None
+        # Sécurité : Si le fichier est trop petit (erreur de connexion)
+        if not audio_bytes or audio_bytes.getbuffer().nbytes < 100:
+            st.toast("⚠️ Échec de la génération audio (fichier vide).", icon="🔇")
+            return None
+        
+        return audio_bytes
+    except Exception as e:
+        st.error(f"Erreur critique du moteur vocal Edge-TTS. Recommencez l'appel. Détails : {e}")
+        return None
 
 # --- AUTRES FONCTIONS ---
 def extraire_score(texte_coach):
@@ -85,7 +102,7 @@ def transcrire_audio(audio_bytes):
         model = genai.GenerativeModel('gemini-2.0-flash')
         config = genai.types.GenerationConfig(temperature=0.0)
         response = model.generate_content(
-            ["Transcris exactement. Si silence, réponds '...'", {"mime_type": "audio/webm", "data": audio_bytes}], 
+            ["Transcris exactement en français. Si silence, réponds '...'", {"mime_type": "audio/webm", "data": audio_bytes}], 
             generation_config=config
         )
         t = response.text.strip()
@@ -117,7 +134,7 @@ def afficher_notice():
 # --- NAVIGATION ---
 if "page" not in st.session_state: st.session_state.page = "home"
 if "messages" not in st.session_state: st.session_state.messages = [] 
-if "appel_en_cours" not in st.session_state: st.session_state.appel_en_cours = False
+if "appel_en_cours" not in st.session_state.appel_en_cours = False
 if "start_time" not in st.session_state: st.session_state.start_time = None
 if "last_audio_id" not in st.session_state: st.session_state.last_audio_id = None
 
@@ -134,7 +151,9 @@ with st.sidebar:
 # PAGE ACCUEIL
 # =========================================================
 if st.session_state.page == "home":
+    
     col_text, col_visual = st.columns([1.4, 1])
+    
     with col_text:
         st.markdown('<h1 class="titre-accueil">Excellence en<br>Relation Client</h1>', unsafe_allow_html=True)
         st.markdown('<p class="sous-titre">Entraînez-vous face à des clients virtuels réalistes.<br>Améliorez votre discours, votre ton et votre réactivité.</p>', unsafe_allow_html=True)
@@ -143,16 +162,21 @@ if st.session_state.page == "home":
         <div class="card"><h3>🗣️ Automatisez votre Trame</h3><p>Ancrez les réflexes verbaux (SBAM, 4C) pour gagner en fluidité.</p></div>
         <div class="card"><h3>⏱️ Maîtrisez le Temps (DMT)</h3><p>Apprenez à concilier écoute active et rapidité.</p></div>
         """, unsafe_allow_html=True)
+
     with col_visual:
-        st.image("https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=1000&auto=format&fit=crop", use_container_width=True)
+        st.image("https://img.freepik.com/free-photo/customer-service-agent-working_23-2149240166.jpg", use_container_width=True)
+        
         st.markdown("###") 
         if st.button("🚀 DÉMARRER L'ENTRAÎNEMENT", use_container_width=True):
             st.session_state.page = "choix_scenario"
             st.rerun()
         st.caption("👆 Accès au simulateur")
+
     st.markdown("---")
+    
     with st.expander("📚 Glossaire Technique & Compétences"):
         for k, v in GLOSSAIRE.items(): st.markdown(f"**🔹 {k}** : {v['definition']}")
+            
     afficher_footer()
 
 # =========================================================
@@ -161,6 +185,7 @@ if st.session_state.page == "home":
 elif st.session_state.page == "choix_scenario":
     st.markdown('<h1 style="text-align:center; color:#0F172A;">Choisissez votre interlocuteur</h1>', unsafe_allow_html=True)
     st.markdown("###")
+    
     c1, c2, c3 = st.columns(3)
     with c1:
         st.image("https://cdn-icons-png.flaticon.com/512/4140/4140048.png", width=80)
@@ -174,8 +199,10 @@ elif st.session_state.page == "choix_scenario":
         st.image("https://cdn-icons-png.flaticon.com/512/4140/4140037.png", width=80)
         st.error("**Marc (Niveau 3)**\n\nClient pressé. Objectif : Rebond commercial.")
         if st.button("Appeler Marc"): st.session_state.selected=SCENARIOS["SCENARIO_3"]; st.session_state.page="sim"; st.rerun()
+    
     st.markdown("---")
     if st.button("⬅️ Retour"): st.session_state.page="home"; st.rerun()
+    
     afficher_footer()
 
 # =========================================================
@@ -183,6 +210,7 @@ elif st.session_state.page == "choix_scenario":
 # =========================================================
 elif st.session_state.page == "sim":
     sc = st.session_state.selected
+    
     with st.sidebar:
         st.success(f"Client : {sc['titre']}")
         if not st.session_state.appel_en_cours:
@@ -219,8 +247,9 @@ elif st.session_state.page == "sim":
         with st.chat_message("assistant", avatar=sc['image']):
             with st.spinner("..."):
                 r = obtenir_reponse_gemini(st.session_state.messages[-1]["content"], st.session_state.messages[:-1], sc['client_prompt'])
-                # NOUVEAU : On passe le nom du client à la fonction parler pour avoir la bonne voix
-                a = parler(r, sc['titre'])
+                
+                # Correction audio : utilise le fix robuste
+                a = parler(r, sc['titre']) 
                 st.write(r)
                 if a: st.audio(a, format='audio/mp3', start_time=0, autoplay=True)
         st.session_state.messages.append({"role":"assistant", "content":r, "audio":a})
