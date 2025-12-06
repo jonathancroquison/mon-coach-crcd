@@ -6,115 +6,118 @@ import os
 # --- 1. CONFIGURATION ---
 st.set_page_config(page_title="Campus CRCD - Sarah", page_icon="😠")
 
-# RÉCUPÉRATION DE LA CLÉ DEPUIS LES SECRETS STREAMLIT
-# Cela remplace la clé "en dur" par la clé sécurisée
+# Récupération de la clé depuis les secrets
 try:
-    # Vérifiez que le nom ici ("GOOGLE_API_KEY") correspond à celui dans vos secrets Streamlit
-    api_key = st.secrets["GOOGLE_API_KEY"]
-    genai.configure(api_key=api_key)
-    
-    # Modèle Gemini 1.5 Flash (Rapide, Gratuit & Multimodal)
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    if "GOOGLE_API_KEY" in st.secrets:
+        api_key = st.secrets["GOOGLE_API_KEY"]
+        genai.configure(api_key=api_key)
+    else:
+        st.error("⚠️ Clé API introuvable dans les secrets Streamlit.")
+        st.stop()
 except Exception as e:
-    st.error("❌ Erreur de clé API. Vérifiez vos 'Secrets' dans Streamlit Cloud.")
-    st.info("Assurez-vous d'avoir ajouté: GOOGLE_API_KEY = 'votre_clé' dans les réglages.")
+    st.error(f"Erreur de configuration : {e}")
     st.stop()
 
-# --- 2. PERSONA (SARAH) ---
+# --- 2. DÉFINITION DU MODÈLE ---
+# On essaie de charger le modèle. Si ça échoue, on affiche les modèles disponibles.
+try:
+    # On utilise 'gemini-1.5-flash' ou 'gemini-1.5-flash-latest'
+    model = genai.GenerativeModel('gemini-1.5-flash')
+except Exception as e:
+    st.error(f"Erreur chargement modèle : {e}")
+
+# --- 3. PERSONA (SARAH) ---
 SARAH_PERSONA = (
-    "Tu es Sarah, une cliente furieuse et impatiente (Niveau Rétention). "
-    "Tu as eu une horrible expérience client. "
-    "Tu parles français. Tes réponses sont courtes, sèches et directes. "
-    "Tu ne te calmes pas facilement. Si on te parle, réponds du tac au tac."
+    "Tu es Sarah, une cliente très mécontente (Niveau Rétention). "
+    "Tu es furieuse, impatiente et agressive. "
+    "Réponds en français. Tes phrases sont courtes, sèches et percutantes. "
+    "Ne te calme pas facilement. Tu veux des résultats, pas du blabla."
 )
 
-# --- 3. FONCTION D'APPEL IA ---
+# --- 4. FONCTION APPEL IA ---
 def get_sarah_response(user_content, input_type):
-    """Envoie le texte ou l'audio à Gemini"""
     try:
         if input_type == "audio":
-            # Gemini écoute directement l'audio (pas de transcription nécessaire)
+            # Mode Audio (Multimodal)
             response = model.generate_content([
                 SARAH_PERSONA,
-                "L'utilisateur vient de me dire ceci vocalement (réponds-lui) :",
+                "L'utilisateur me dit ceci vocalement (réponds-lui sur le même ton) :",
                 {
-                    "mime_type": "audio/webm", # Format standard du web
+                    "mime_type": "audio/webm", 
                     "data": user_content
                 }
             ])
         else:
-            # Gemini lit le texte
+            # Mode Texte
             response = model.generate_content([
                 SARAH_PERSONA,
-                f"L'utilisateur me dit : {user_content}"
+                f"L'utilisateur écrit : {user_content}"
             ])
         return response.text
     except Exception as e:
-        return f"Problème de connexion (Sarah ne répond pas) : {e}"
+        return f"Erreur technique (Sarah est partie) : {e}"
 
-# --- 4. INTERFACE ---
-st.title("🎓 Campus CRCD")
-st.caption("Simulation : Client Mécontent (Mode Gratuit)")
+# --- 5. INTERFACE ---
+st.title("📞 Simulation Client")
+st.markdown("**Interlocuteur :** Sarah (Niveau Rétention)")
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Afficher l'historique
+# Affichage historique
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
+        st.write(msg["content"])
 
-# --- 5. ZONE DE SAISIE (AVEC FIX FIREFOX) ---
+# --- 6. INPUTS ---
 
-# Saisie Texte (Bas de page)
-text_input = st.chat_input("Répondre à Sarah...")
+# Zone texte (Bas de page)
+text_input = st.chat_input("Votre réponse...")
 
-# Saisie Audio (Sidebar pour stabilité)
+# Zone Audio (Sidebar)
 with st.sidebar:
-    st.markdown("### 🎙️ Réponse Vocale")
+    st.markdown("### 🎙️ Micro")
+    # Le key="audio_recorder_unique" aide à éviter les conflits
     audio_bytes = audio_recorder(
-        text="Cliquez pour parler",
-        recording_color="#e8b62c", 
+        text="Cliquer pour parler",
+        recording_color="#e8b62c",
         neutral_color="#6aa36f",
         icon_size="2x",
-        key="audio_rec"
+        key="audio_recorder_unique"
     )
 
-# --- 6. LOGIQUE DE PRIORITÉ ---
+# --- 7. TRAITEMENT ---
 
 final_content = None
 type_input = None
 
-# A. Priorité au texte écrit
 if text_input:
     final_content = text_input
     type_input = "text"
 
-# B. Sinon Audio (Si valide et > 500 octets pour éviter le bug Firefox)
+# Fix Firefox : on vérifie que l'audio fait plus de 500 octets
 elif audio_bytes and len(audio_bytes) > 500:
     final_content = audio_bytes
     type_input = "audio"
 
-# --- 7. TRAITEMENT ---
+# --- 8. RÉPONSE ---
 
 if final_content:
-    # 1. Message Utilisateur
+    # 1. Afficher l'input utilisateur
     if type_input == "text":
         st.session_state.messages.append({"role": "user", "content": final_content})
         with st.chat_message("user"):
-            st.markdown(final_content)
+            st.write(final_content)
     else:
-        # Note pour l'audio
-        note = "🎤 *[Message Vocal envoyé]*"
+        note = "🎤 *[Audio envoyé]*"
         st.session_state.messages.append({"role": "user", "content": note})
         with st.chat_message("user"):
             st.markdown(note)
 
-    # 2. Réponse de Sarah (Spinner pendant le calcul)
+    # 2. Réponse de Sarah
     with st.chat_message("assistant"):
         with st.spinner("Sarah réfléchit..."):
-            ai_reply = get_sarah_response(final_content, type_input)
-            st.markdown(ai_reply)
-    
-    # 3. Sauvegarde Réponse
-    st.session_state.messages.append({"role": "assistant", "content": ai_reply})
+            reply = get_sarah_response(final_content, type_input)
+            st.write(reply)
+            
+    st.session_state.messages.append({"role": "assistant", "content": reply})
