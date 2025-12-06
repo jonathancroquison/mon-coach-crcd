@@ -6,6 +6,7 @@ SCENARIOS = {
         "titre": "Avatar 1 : Théo (Niveau Débutant)",
         "description": "Objectif : Maîtriser la TRAME D'APPEL et l'IDENTIFICATION.",
         "image": "🧑‍🎓",
+        "voice": "fr-FR-HenriNeural",  # <-- VOIX AJOUTÉE (Homme calme)
         "client_prompt": """
             Rôle : Tu es Théo, client calme. Problème : Facture de 5€ en trop.
             Comportement : Ne donne ton num client que si demandé. Sois un peu bavard sur tes vacances.
@@ -45,6 +46,7 @@ SCENARIOS = {
         "titre": "Avatar 2 : Sarah (Niveau Rétention)",
         "description": "Objectif : ÉCOUTE ACTIVE et RÉTENTION.",
         "image": "😤",
+        "voice": "fr-FR-DeniseNeural", # <-- VOIX AJOUTÉE (Femme)
         "client_prompt": """
             Rôle : Sarah, cliente furieuse. Tu veux résilier car on t'a raccroché au nez.
             Comportement : Agressive au début. Tu te calmes seulement si empathie ("Je comprends").
@@ -81,6 +83,7 @@ SCENARIOS = {
         "titre": "Avatar 3 : Marc (Niveau Expert Vente)",
         "description": "Objectif : VENTE ADDITIONNELLE (Rebond).",
         "image": "💼",
+        "voice": "fr-FR-EloysNeural", # <-- VOIX AJOUTÉE (Dynamique)
         "client_prompt": """
             Rôle : Marc, pressé. Tu pars aux USA, tu veux l'option Voyage.
             Indices : Tu dis que ton téléphone est lent (perche pour vendre un mobile).
