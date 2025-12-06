@@ -2,7 +2,8 @@ import streamlit as st
 import google.generativeai as genai
 import time
 import re
-from gtts import gTTS
+import asyncio 
+import edge_tts
 from streamlit_mic_recorder import mic_recorder
 import io
 
@@ -28,74 +29,16 @@ st.set_page_config(
 # --- CSS / DESIGN & ACCESSIBILITÉ ---
 st.markdown("""
 <style>
-    /* TYPOGRAPHIE & LISIBILITÉ */
-    html, body, [class*="css"] {
-        font-family: 'Segoe UI', Helvetica, sans-serif;
-    }
-    
-    /* Titre Principal (H1) */
-    .titre-accueil { 
-        font-size: 42px; 
-        font-weight: 800; 
-        color: #0F172A; /* Contraste fort (WCAG AAA) */
-        line-height: 1.2;
-        margin-top: -20px;
-        margin-bottom: 15px;
-    }
-    
-    /* Sous-titre */
-    .sous-titre {
-        font-size: 18px;
-        color: #334155; /* Gris foncé lisible */
-        margin-bottom: 25px;
-        line-height: 1.5;
-    }
-
-    /* Cartes Objectifs */
-    .card {
-        background-color: white;
-        padding: 20px;
-        border-radius: 12px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-        margin-bottom: 15px;
-        border-left: 6px solid #2563EB; /* Marqueur visuel fort */
-    }
+    html, body, [class*="css"] { font-family: 'Segoe UI', Helvetica, sans-serif; }
+    .titre-accueil { font-size: 42px; font-weight: 800; color: #0F172A; line-height: 1.2; margin-top: -20px; margin-bottom: 15px; }
+    .sous-titre { font-size: 18px; color: #334155; margin-bottom: 25px; line-height: 1.5; }
+    .card { background-color: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05); margin-bottom: 15px; border-left: 6px solid #2563EB; }
     .card h3 { margin: 0 0 8px 0; font-size: 18px; color: #1E40AF; font-weight: 700; }
     .card p { margin: 0; font-size: 16px; color: #1E293B; }
-
-    /* Boutons : Focus visible et contraste */
-    .stButton>button { 
-        width: 100%;
-        border-radius: 8px; 
-        font-weight: bold; 
-        height: 3.5em;
-        border: none;
-        background-color: #2563EB;
-        color: white;
-        font-size: 16px; /* Texte plus grand */
-        transition: all 0.2s;
-    }
-    .stButton>button:hover {
-        background-color: #1D4ED8;
-        transform: scale(1.01);
-    }
-    .stButton>button:focus {
-        outline: 3px solid #FCD34D; /* Focus visible pour navigation clavier */
-    }
-    
-    /* FOOTER (Pied de page) */
-    .footer {
-        width: 100%;
-        text-align: center;
-        margin-top: 50px;
-        padding-top: 20px;
-        border-top: 1px solid #E2E8F0;
-        color: #64748B;
-        font-size: 14px;
-        font-style: italic;
-    }
-    
-    /* Score */
+    .stButton>button { width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; border: none; background-color: #2563EB; color: white; font-size: 16px; transition: all 0.2s; }
+    .stButton>button:hover { background-color: #1D4ED8; transform: scale(1.01); }
+    .stButton>button:focus { outline: 3px solid #FCD34D; }
+    .footer { width: 100%; text-align: center; margin-top: 50px; padding-top: 20px; border-top: 1px solid #E2E8F0; color: #64748B; font-size: 14px; font-style: italic; }
     .big-score { font-size: 60px; font-weight: 900; text-align: center; color: #1E3A8A; }
 </style>
 """, unsafe_allow_html=True)
@@ -115,7 +58,6 @@ def afficher_barometre(score):
     col_jauge, col_verdict = st.columns([3, 1])
     with col_jauge:
         st.progress(score / 100)
-        # Utilisation de couleurs standards pour daltoniens (Rouge/Orange/Vert reste standard mais le texte aide)
         if score < 50: st.error(f"🔴 {score}/100 - Insuffisant")
         elif score < 80: st.warning(f"🟠 {score}/100 - En acquisition")
         else: st.success(f"🟢 {score}/100 - Maîtrisé")
@@ -134,13 +76,26 @@ def transcrire_audio(audio_bytes):
         return None if t in ["...", ""] else t
     except: return None
 
-def parler(texte, langue='fr'):
+# --- NOUVELLE FONCTION AUDIO (EDGE TTS) ---
+async def generer_audio_async(texte, voix):
+    communicate = edge_tts.Communicate(texte, voix)
+    mp3_fp = io.BytesIO()
+    async for chunk in communicate.stream():
+        if chunk["type"] == "audio":
+            mp3_fp.write(chunk["data"])
+    mp3_fp.seek(0)
+    return mp3_fp
+
+def parler(texte, voix='fr-FR-DeniseNeural'):
     try:
-        tts = gTTS(text=texte, lang=langue, slow=False)
-        fp = io.BytesIO()
-        tts.write_to_fp(fp)
-        return fp
-    except: return None
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        audio_fp = loop.run_until_complete(generer_audio_async(texte, voix))
+        loop.close()
+        return audio_fp
+    except Exception as e:
+        st.error(f"Erreur Audio : {e}")
+        return None
 
 def obtenir_reponse_gemini(msg, hist, prompt):
     try:
@@ -173,11 +128,10 @@ if "last_audio_id" not in st.session_state: st.session_state.last_audio_id = Non
 
 # --- SIDEBAR (NAVIGATION) ---
 with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/4712/4712009.png", width=70, output_format="PNG") # Logo décoratif
+    st.image("https://cdn-icons-png.flaticon.com/512/4712/4712009.png", width=70, output_format="PNG")
     st.markdown("### Campus CRCD")
     st.markdown("---")
     
-    # LOGIQUE BOUTON ACCUEIL : N'apparaît PAS si on est déjà sur Home
     if st.session_state.page != "home":
         if st.button("🏠 Retour Accueil"): st.session_state.page = "home"; st.rerun()
         
@@ -210,7 +164,6 @@ if st.session_state.page == "home":
         """, unsafe_allow_html=True)
 
     with col_visual:
-        # Image avec texte alternatif (Alt) pour l'accessibilité
         st.image("https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=1000&auto=format&fit=crop", 
                  use_container_width=True)
         
@@ -298,7 +251,10 @@ elif st.session_state.page == "sim":
         with st.chat_message("assistant", avatar=sc['image']):
             with st.spinner("..."):
                 r = obtenir_reponse_gemini(st.session_state.messages[-1]["content"], st.session_state.messages[:-1], sc['client_prompt'])
-                a = parler(r)
+                # --- MODIFICATION ICI : On utilise la voix spécifique du scénario ---
+                voix_avatar = sc.get("voice", "fr-FR-DeniseNeural")
+                a = parler(r, voix=voix_avatar)
+                # -------------------------------------------------------------------
                 st.write(r)
                 if a: st.audio(a, format='audio/mp3', start_time=0, autoplay=True)
         st.session_state.messages.append({"role":"assistant", "content":r, "audio":a})
